@@ -1,0 +1,23 @@
+name: DeathBackup
+main: pl.deathbackup.DeathBackupPlugin
+version: ${project.version}
+api-version: '1.21'
+description: Backup itemow i XP z ostatnich smierci graczy.
+
+commands:
+  nadajbackup:
+    description: Menu backupow smierci gracza (admin)
+    usage: /nadajbackup <gracz>
+    permission: deathbackup.admin
+  odbierzbackup:
+    description: Odbierz backup nadany przez administratora
+    usage: /odbierzbackup
+    permission: deathbackup.claim
+
+permissions:
+  deathbackup.admin:
+    description: Dostep do /nadajbackup
+    default: op
+  deathbackup.claim:
+    description: Dostep do /odbierzbackup
+    default: true
