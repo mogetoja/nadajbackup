@@ -18,13 +18,22 @@ public class DeathBackupPlugin extends JavaPlugin implements TabExecutor {
     public static final String PREFIX = "§8[§cBackup§8] §r";
 
     private BackupManager manager;
+    private BarManager bars;
 
     @Override
     public void onEnable() {
+        saveDefaultConfig();
         manager = new BackupManager(this);
+        bars = new BarManager(this);
 
         Bukkit.getPluginManager().registerEvents(new DeathListener(this), this);
         Bukkit.getPluginManager().registerEvents(new MenuListener(this), this);
+        Bukkit.getPluginManager().registerEvents(bars, this);
+
+        // gracze online przy /reload
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            bars.refresh(p.getUniqueId());
+        }
 
         getCommand("nadajbackup").setExecutor(this);
         getCommand("nadajbackup").setTabCompleter(this);
@@ -33,8 +42,42 @@ public class DeathBackupPlugin extends JavaPlugin implements TabExecutor {
         getLogger().info("DeathBackup wlaczony (limit " + BackupManager.MAX + " smierci na gracza).");
     }
 
+    @Override
+    public void onDisable() {
+        if (bars != null) bars.removeAll();
+    }
+
     public BackupManager manager() {
         return manager;
+    }
+
+    public BarManager bars() {
+        return bars;
+    }
+
+    /** Admin nadal backup graczowi: czat tylko dla osob z deathbackup.wiadomoscibc + Discord. */
+    public void announceGrant(String admin, String player) {
+        String msg = "§8[§cBackup§8] §fAdministrator §c" + admin + " §fnadal backupa dla gracza §a" + player + "§f.";
+        for (Player pl : Bukkit.getOnlinePlayers()) {
+            if (pl.hasPermission("deathbackup.wiadomoscibc")) pl.sendMessage(msg);
+        }
+        Bukkit.getConsoleSender().sendMessage(msg);
+        Webhook.send(this, getConfig().getString("discord-webhook", ""),
+                "Administrator **" + admin + "** nadal backupa dla gracza **" + player + "**.");
+    }
+
+    /** Gracz odebral backup: czat + Discord. */
+    public void announceClaim(String player, String admin) {
+        String by = (admin == null || admin.isBlank()) ? "" : admin;
+        announce("§8[§cBackup§8] §fGracz §a" + player + " §fodebral backup nadany przez administratora §c" + by + "§f.",
+                "Gracz **" + player + "** odebral backup nadany przez administratora **" + by + "**.");
+    }
+
+    private void announce(String chat, String discord) {
+        if (getConfig().getBoolean("chat-broadcast", true)) {
+            Bukkit.broadcastMessage(chat);
+        }
+        Webhook.send(this, getConfig().getString("discord-webhook", ""), discord);
     }
 
     @Override

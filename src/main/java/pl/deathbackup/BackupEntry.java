@@ -20,6 +20,8 @@ public class BackupEntry {
     public boolean granted;
     /** Gracz juz odebral ten backup. */
     public boolean claimed;
+    /** Nick administratora, ktory nadal backup. */
+    public String grantedBy = "";
 
     public BackupEntry(long id, long time, String world, double x, double y, double z,
                        String cause, int xp, Map<Integer, ItemStack> items,

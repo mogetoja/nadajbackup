@@ -1,43 +1,83 @@
 package pl.deathbackup;
 
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.Player;
+import org.bukkit.entity.Projectile;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.Player;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.Location;
-import org.bukkit.Material;
 
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 
-/** Zapisuje kazda smierc gracza (itemy + XP). */
+/**
+ * Zapisuje kazda smierc gracza (itemy + XP) - stan SPRZED smierci.
+ *
+ * Serwer oprozznia ekwipunek zanim wywola PlayerDeathEvent, dlatego migawke ekwipunku
+ * robimy juz przy ostatnim (smiertelnym) obrazeniu, kiedy itemy jeszcze sa u gracza.
+ */
 public class DeathListener implements Listener {
 
+    /** Jak dlugo migawka z smiertelnego obrazenia jest wazna (ms). */
+    private static final long SNAPSHOT_MAX_AGE = 10_000L;
+
+    private record Snapshot(long time, Map<Integer, ItemStack> items, int xp) {
+    }
+
     private final DeathBackupPlugin plugin;
+    private final Map<UUID, Snapshot> snapshots = new HashMap<>();
 
     public DeathListener(DeathBackupPlugin plugin) {
         this.plugin = plugin;
     }
 
+    /** Smiertelne obrazenie - ekwipunek jest jeszcze nietkniety, robimy migawke. */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onFatalDamage(EntityDamageEvent e) {
+        if (!(e.getEntity() instanceof Player p)) return;
+        if (p.getHealth() - e.getFinalDamage() > 0) return;
+
+        snapshots.put(p.getUniqueId(),
+                new Snapshot(System.currentTimeMillis(), copyInventory(p), XpUtil.getTotal(p)));
+    }
+
     @EventHandler(priority = EventPriority.MONITOR)
     public void onDeath(PlayerDeathEvent e) {
         Player p = e.getEntity();
+        Snapshot snap = snapshots.remove(p.getUniqueId());
 
-        Map<Integer, ItemStack> items = new LinkedHashMap<>();
-        ItemStack[] contents = p.getInventory().getContents();
-        for (int i = 0; i < contents.length; i++) {
-            ItemStack it = contents[i];
-            if (it != null && it.getType() != Material.AIR) {
-                items.put(i, it.clone());
+        Map<Integer, ItemStack> items;
+        int xp;
+
+        if (snap != null && System.currentTimeMillis() - snap.time() <= SNAPSHOT_MAX_AGE) {
+            // normalna sciezka: stan sprzed smierci
+            items = snap.items();
+            xp = snap.xp();
+        } else {
+            // smierc bez obrazen (np. setHealth(0)) - bierzemy co jest
+            items = copyInventory(p);
+            xp = XpUtil.getTotal(p);
+            if (items.isEmpty()) {
+                // ekwipunek juz oprozniony - ratujemy sie lista dropow
+                int n = 0;
+                for (ItemStack drop : e.getDrops()) {
+                    if (drop == null || drop.getType() == Material.AIR) continue;
+                    items.put(n < 36 ? n : 100 + n, drop.clone());
+                    n++;
+                }
             }
+            if (xp <= 0) xp = e.getDroppedExp();
         }
 
-        int xp = XpUtil.getTotal(p);
         if (items.isEmpty() && xp <= 0) {
             return; // nie ma czego backupowac
         }
@@ -54,13 +94,30 @@ public class DeathListener implements Listener {
         plugin.manager().add(p.getUniqueId(), entry);
     }
 
+    @EventHandler
+    public void onQuit(PlayerQuitEvent e) {
+        snapshots.remove(e.getPlayer().getUniqueId());
+    }
+
+    private Map<Integer, ItemStack> copyInventory(Player p) {
+        Map<Integer, ItemStack> items = new LinkedHashMap<>();
+        ItemStack[] contents = p.getInventory().getContents();
+        for (int i = 0; i < contents.length; i++) {
+            ItemStack it = contents[i];
+            if (it != null && it.getType() != Material.AIR) {
+                items.put(i, it.clone());
+            }
+        }
+        return items;
+    }
+
     private String describeCause(Player p) {
         EntityDamageEvent last = p.getLastDamageCause();
         if (last == null) return "Nieznana";
 
         if (last instanceof EntityDamageByEntityEvent by) {
             Entity d = by.getDamager();
-            if (d instanceof org.bukkit.entity.Projectile proj && proj.getShooter() instanceof Entity shooter) {
+            if (d instanceof Projectile proj && proj.getShooter() instanceof Entity shooter) {
                 d = shooter;
             }
             String name = d.getName();

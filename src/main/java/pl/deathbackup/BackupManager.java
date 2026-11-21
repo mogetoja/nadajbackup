@@ -80,7 +80,7 @@ public class BackupManager {
                         if (it != null) items.put(Integer.parseInt(slot), it);
                     }
                 }
-                list.add(new BackupEntry(
+                BackupEntry entry = new BackupEntry(
                         Long.parseLong(key),
                         s.getLong("time"),
                         s.getString("world", "?"),
@@ -89,7 +89,9 @@ public class BackupManager {
                         s.getInt("xp"),
                         items,
                         s.getBoolean("granted"),
-                        s.getBoolean("claimed")));
+                        s.getBoolean("claimed"));
+                entry.grantedBy = s.getString("grantedBy", "");
+                list.add(entry);
             } catch (NumberFormatException ex) {
                 plugin.getLogger().warning("Pominieto uszkodzony wpis " + key + " w " + f.getName());
             }
@@ -115,6 +117,7 @@ public class BackupManager {
             cfg.set(p + "xp", e.xp);
             cfg.set(p + "granted", e.granted);
             cfg.set(p + "claimed", e.claimed);
+            cfg.set(p + "grantedBy", e.grantedBy);
             for (Map.Entry<Integer, ItemStack> it : e.items.entrySet()) {
                 cfg.set(p + "items." + it.getKey(), it.getValue());
             }
@@ -180,6 +183,8 @@ public class BackupManager {
 
         e.claimed = true;
         save(p.getUniqueId());
+        plugin.bars().refresh(p.getUniqueId()); // dopiero po oznaczeniu jako odebrany
+        plugin.announceClaim(p.getName(), e.grantedBy);
         p.sendMessage(DeathBackupPlugin.PREFIX + "§aOdebrano backup! §7(" + e.itemCount() + " przedmiotow, "
                 + XpUtil.levelFor(e.xp) + " lvl)");
         return true;

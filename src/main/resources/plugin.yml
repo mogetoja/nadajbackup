@@ -21,3 +21,6 @@ permissions:
   deathbackup.claim:
     description: Dostep do /odbierzbackup
     default: true
+  deathbackup.wiadomoscibc:
+    description: Widzi na czacie ogloszenia o nadaniu backupow
+    default: op

@@ -1,0 +1,9 @@
+# DeathBackup - konfiguracja
+
+# Webhook Discorda. Zostaw puste, zeby wylaczyc.
+# Discord: Ustawienia kanalu -> Integracje -> Webhooki -> Nowy webhook -> Kopiuj URL
+discord-webhook: ""
+
+# Ogloszenie o odebraniu backupu na czacie dla wszystkich graczy (true/false).
+# Ogloszenie o nadaniu widza zawsze tylko osoby z uprawnieniem deathbackup.wiadomoscibc.
+chat-broadcast: true
