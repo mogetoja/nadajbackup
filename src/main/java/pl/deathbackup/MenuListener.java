@@ -131,14 +131,6 @@ public class MenuListener implements Listener {
         }
         plugin.bars().refresh(target);
 
-        // usuwamy oryginalne itemy z tej smierci (tylko te z tagiem ID smierci)
-        if (plugin.getConfig().getBoolean("remove-original-items", true)) {
-            int removed = plugin.cleaner().removeDeathItems(entry.id);
-            if (removed > 0) {
-                admin.sendMessage(DeathBackupPlugin.PREFIX + "§7Usunieto §f" + removed
-                        + " §7oryginalnych przedmiotow z tej smierci.");
-            }
-        }
         plugin.announceGrant(admin.getName(), name);
     }
 

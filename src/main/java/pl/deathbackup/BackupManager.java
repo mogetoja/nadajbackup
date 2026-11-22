@@ -185,6 +185,15 @@ public class BackupManager {
         save(p.getUniqueId());
         plugin.bars().refresh(p.getUniqueId()); // dopiero po oznaczeniu jako odebrany
         plugin.announceClaim(p.getName(), e.grantedBy);
+
+        // dopiero po odebraniu usuwamy oryginalne itemy z tej smierci (tylko te z tagiem ID smierci)
+        if (plugin.getConfig().getBoolean("remove-original-items", true)) {
+            int removed = plugin.cleaner().removeDeathItems(e.id);
+            if (removed > 0) {
+                plugin.getLogger().info("Usunieto " + removed + " oryginalnych przedmiotow ze smierci "
+                        + e.id + " gracza " + p.getName() + " (backup odebrany).");
+            }
+        }
         p.sendMessage(DeathBackupPlugin.PREFIX + "§aOdebrano backup! §7(" + e.itemCount() + " przedmiotow, "
                 + XpUtil.levelFor(e.xp) + " lvl)");
         return true;
