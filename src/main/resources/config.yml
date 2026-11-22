@@ -7,3 +7,8 @@ discord-webhook: ""
 # Ogloszenie o odebraniu backupu na czacie dla wszystkich graczy (true/false).
 # Ogloszenie o nadaniu widza zawsze tylko osoby z uprawnieniem deathbackup.wiadomoscibc.
 chat-broadcast: true
+
+# Po nadaniu backupa usuwa oryginalne itemy z tej smierci (gracze online, skrzynie,
+# itemy na ziemi; gracze offline i niezaladowane chunki - przy wejsciu / zaladowaniu).
+# Usuwane sa TYLKO itemy z ukrytym tagiem tej konkretnej smierci, nie wszystkie danego typu.
+remove-original-items: true

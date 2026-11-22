@@ -19,16 +19,19 @@ public class DeathBackupPlugin extends JavaPlugin implements TabExecutor {
 
     private BackupManager manager;
     private BarManager bars;
+    private ItemCleaner cleaner;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
         manager = new BackupManager(this);
         bars = new BarManager(this);
+        cleaner = new ItemCleaner(this);
 
         Bukkit.getPluginManager().registerEvents(new DeathListener(this), this);
         Bukkit.getPluginManager().registerEvents(new MenuListener(this), this);
         Bukkit.getPluginManager().registerEvents(bars, this);
+        Bukkit.getPluginManager().registerEvents(new CleanupListener(this), this);
 
         // gracze online przy /reload
         for (Player p : Bukkit.getOnlinePlayers()) {
@@ -53,6 +56,10 @@ public class DeathBackupPlugin extends JavaPlugin implements TabExecutor {
 
     public BarManager bars() {
         return bars;
+    }
+
+    public ItemCleaner cleaner() {
+        return cleaner;
     }
 
     /** Admin nadal backup graczowi: czat tylko dla osob z deathbackup.wiadomoscibc + Discord. */

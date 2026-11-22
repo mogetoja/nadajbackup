@@ -16,6 +16,7 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -71,7 +72,7 @@ public class DeathListener implements Listener {
                 int n = 0;
                 for (ItemStack drop : e.getDrops()) {
                     if (drop == null || drop.getType() == Material.AIR) continue;
-                    items.put(n < 36 ? n : 100 + n, drop.clone());
+                    items.put(n < 36 ? n : 100 + n, plugin.cleaner().strip(drop.clone()));
                     n++;
                 }
             }
@@ -92,6 +93,15 @@ public class DeathListener implements Listener {
                 xp, items, false, false);
 
         plugin.manager().add(p.getUniqueId(), entry);
+
+        // oznaczamy wypadle itemy ID tej smierci - po nadaniu backupa usuniemy tylko je
+        List<ItemStack> drops = e.getDrops();
+        for (int i = 0; i < drops.size(); i++) {
+            ItemStack d = drops.get(i);
+            if (d != null && d.getType() != Material.AIR) {
+                drops.set(i, plugin.cleaner().mark(d, now));
+            }
+        }
     }
 
     @EventHandler
@@ -105,7 +115,7 @@ public class DeathListener implements Listener {
         for (int i = 0; i < contents.length; i++) {
             ItemStack it = contents[i];
             if (it != null && it.getType() != Material.AIR) {
-                items.put(i, it.clone());
+                items.put(i, plugin.cleaner().strip(it.clone()));
             }
         }
         return items;
