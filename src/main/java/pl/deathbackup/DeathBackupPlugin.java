@@ -20,6 +20,7 @@ public class DeathBackupPlugin extends JavaPlugin implements TabExecutor {
     private BackupManager manager;
     private BarManager bars;
     private ItemCleaner cleaner;
+    private IconCache icons;
 
     @Override
     public void onEnable() {
@@ -27,6 +28,7 @@ public class DeathBackupPlugin extends JavaPlugin implements TabExecutor {
         manager = new BackupManager(this);
         bars = new BarManager(this);
         cleaner = new ItemCleaner(this);
+        icons = new IconCache(this);
 
         Bukkit.getPluginManager().registerEvents(new DeathListener(this), this);
         Bukkit.getPluginManager().registerEvents(new MenuListener(this), this);
@@ -60,6 +62,10 @@ public class DeathBackupPlugin extends JavaPlugin implements TabExecutor {
 
     public ItemCleaner cleaner() {
         return cleaner;
+    }
+
+    public IconCache icons() {
+        return icons;
     }
 
     /** Admin nadal backup graczowi: czat tylko dla osob z deathbackup.wiadomoscibc + embed na Discordzie. */

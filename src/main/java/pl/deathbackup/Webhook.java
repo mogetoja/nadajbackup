@@ -8,6 +8,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 
 /** Wysylanie wiadomosci na webhook Discorda (asynchronicznie, nie blokuje serwera). */
@@ -21,9 +22,33 @@ public final class Webhook {
         post(plugin, url, "{\"content\":\"" + escape(message) + "\",\"allowed_mentions\":{\"parse\":[]}}");
     }
 
-    /** Embed. Kazde pole to {nazwa, wartosc, "true"/"false" (inline)}. */
+    /**
+     * Embed. Kazde pole to {nazwa, wartosc, "true"/"false" (inline)}.
+     * Gdy podano image, obrazek PNG jest renderowany asynchronicznie i dolaczany do embedu.
+     */
     public static void sendEmbed(DeathBackupPlugin plugin, String url, String title, int color,
-                                 String description, List<String[]> fields) {
+                                 String description, List<String[]> fields, Supplier<byte[]> image) {
+        if (url == null || url.isBlank()) return;
+
+        String plain = embedJson(title, color, description, fields, false);
+        String withImage = embedJson(title, color, description, fields, true);
+
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            byte[] png = null;
+            if (image != null) {
+                try {
+                    png = image.get();
+                } catch (Throwable t) {
+                    plugin.getLogger().warning("Nie udalo sie wygenerowac obrazka backupu: " + t);
+                }
+            }
+            if (png != null) postMultipart(plugin, url, withImage, png);
+            else doPost(plugin, url, plain);
+        });
+    }
+
+    private static String embedJson(String title, int color, String description,
+                                    List<String[]> fields, boolean image) {
         StringBuilder sb = new StringBuilder();
         sb.append("{\"embeds\":[{");
         sb.append("\"title\":\"").append(escape(title)).append("\",");
@@ -31,6 +56,9 @@ public final class Webhook {
         sb.append("\"color\":").append(color).append(',');
         sb.append("\"timestamp\":\"").append(Instant.now()).append("\",");
         sb.append("\"footer\":{\"text\":\"DeathBackup\"},");
+        if (image) {
+            sb.append("\"image\":{\"url\":\"attachment://backup.png\"},");
+        }
         sb.append("\"fields\":[");
         for (int i = 0; i < fields.size(); i++) {
             String[] f = fields.get(i);
@@ -40,33 +68,64 @@ public final class Webhook {
                     .append("\"inline\":").append(f[2]).append('}');
         }
         sb.append("]}],\"allowed_mentions\":{\"parse\":[]}}");
-        post(plugin, url, sb.toString());
+        return sb.toString();
     }
 
     private static void post(DeathBackupPlugin plugin, String url, String json) {
         if (url == null || url.isBlank()) return;
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> doPost(plugin, url, json));
+    }
 
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            try {
-                HttpURLConnection c = (HttpURLConnection) URI.create(url.trim()).toURL().openConnection();
-                c.setRequestMethod("POST");
-                c.setConnectTimeout(5000);
-                c.setReadTimeout(5000);
-                c.setDoOutput(true);
-                c.setRequestProperty("Content-Type", "application/json");
-                c.setRequestProperty("User-Agent", "DeathBackup");
-                try (OutputStream os = c.getOutputStream()) {
-                    os.write(json.getBytes(StandardCharsets.UTF_8));
-                }
-                int code = c.getResponseCode();
-                if (code < 200 || code >= 300) {
-                    plugin.getLogger().warning("Webhook Discorda zwrocil kod " + code);
-                }
-                c.disconnect();
-            } catch (Exception ex) {
-                plugin.getLogger().log(Level.WARNING, "Nie udalo sie wyslac webhooka: " + ex.getMessage());
+    private static void doPost(DeathBackupPlugin plugin, String url, String json) {
+        try {
+            HttpURLConnection c = open(url, "application/json");
+            try (OutputStream os = c.getOutputStream()) {
+                os.write(json.getBytes(StandardCharsets.UTF_8));
             }
-        });
+            check(plugin, c);
+        } catch (Exception ex) {
+            plugin.getLogger().log(Level.WARNING, "Nie udalo sie wyslac webhooka: " + ex.getMessage());
+        }
+    }
+
+    private static void postMultipart(DeathBackupPlugin plugin, String url, String json, byte[] png) {
+        try {
+            String boundary = "----DeathBackup" + System.nanoTime();
+            HttpURLConnection c = open(url, "multipart/form-data; boundary=" + boundary);
+            try (OutputStream os = c.getOutputStream()) {
+                os.write(("--" + boundary + "\r\n"
+                        + "Content-Disposition: form-data; name=\"payload_json\"\r\n"
+                        + "Content-Type: application/json\r\n\r\n").getBytes(StandardCharsets.UTF_8));
+                os.write(json.getBytes(StandardCharsets.UTF_8));
+                os.write(("\r\n--" + boundary + "\r\n"
+                        + "Content-Disposition: form-data; name=\"files[0]\"; filename=\"backup.png\"\r\n"
+                        + "Content-Type: image/png\r\n\r\n").getBytes(StandardCharsets.UTF_8));
+                os.write(png);
+                os.write(("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
+            }
+            check(plugin, c);
+        } catch (Exception ex) {
+            plugin.getLogger().log(Level.WARNING, "Nie udalo sie wyslac webhooka z obrazkiem: " + ex.getMessage());
+        }
+    }
+
+    private static HttpURLConnection open(String url, String contentType) throws Exception {
+        HttpURLConnection c = (HttpURLConnection) URI.create(url.trim()).toURL().openConnection();
+        c.setRequestMethod("POST");
+        c.setConnectTimeout(5000);
+        c.setReadTimeout(10000);
+        c.setDoOutput(true);
+        c.setRequestProperty("Content-Type", contentType);
+        c.setRequestProperty("User-Agent", "DeathBackup");
+        return c;
+    }
+
+    private static void check(DeathBackupPlugin plugin, HttpURLConnection c) throws Exception {
+        int code = c.getResponseCode();
+        if (code < 200 || code >= 300) {
+            plugin.getLogger().warning("Webhook Discorda zwrocil kod " + code);
+        }
+        c.disconnect();
     }
 
     private static String escape(String s) {

@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.Supplier;
 
 /** Buduje embedy dla logow na Discordzie (pelna lista itemow z backupu). */
 public final class DiscordLog {
@@ -78,7 +79,28 @@ public final class DiscordLog {
             }
         }
 
-        Webhook.sendEmbed(plugin, url, title, color, description, fields);
+        // dane do obrazka zbieramy tu (watek glowny), a rysujemy asynchronicznie
+        Supplier<byte[]> image = null;
+        if (plugin.getConfig().getBoolean("discord-image", true) && !e.items.isEmpty()) {
+            List<InventoryImage.Slot> slots = new ArrayList<>();
+            for (Map.Entry<Integer, ItemStack> en : e.items.entrySet()) {
+                ItemStack it = en.getValue();
+                ItemMeta m = it.getItemMeta();
+                boolean ench = m != null && (m.hasEnchants()
+                        || (m instanceof EnchantmentStorageMeta b && b.hasStoredEnchants()));
+                slots.add(new InventoryImage.Slot(en.getKey(), it.getType().getKey().getKey(),
+                        it.getAmount(), ench));
+            }
+            image = () -> {
+                try {
+                    return InventoryImage.render(slots, plugin.icons());
+                } catch (java.io.IOException ex) {
+                    throw new IllegalStateException(ex);
+                }
+            };
+        }
+
+        Webhook.sendEmbed(plugin, url, title, color, description, fields, image);
     }
 
     // ------------------------------------------------------------ opis itemu

@@ -12,3 +12,12 @@ chat-broadcast: true
 # itemy na ziemi; gracze offline i niezaladowane chunki - przy wejsciu / zaladowaniu).
 # Usuwane sa TYLKO itemy z ukrytym tagiem tej konkretnej smierci, nie wszystkie danego typu.
 remove-original-items: true
+
+# Obrazek ekwipunku (jak w grze) dolaczany do wiadomosci na Discordzie.
+# Tekstury itemow sa pobierane przy pierwszym uzyciu i zapisywane w plugins/DeathBackup/icons/.
+# Gdy tekstury nie da sie pobrac, item jest rysowany jako kolorowy kwadrat z inicjalami.
+discord-image: true
+
+# (opcjonalnie) wlasne adresy tekstur, %s = id itemu np. diamond_sword. Domyslnie: PrismarineJS/minecraft-assets.
+# texture-urls:
+#   - "https://example.com/items/%s.png"
