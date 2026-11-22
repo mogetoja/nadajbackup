@@ -188,7 +188,7 @@ public class BackupManager {
 
         // dopiero po odebraniu usuwamy oryginalne itemy z tej smierci (tylko te z tagiem ID smierci)
         if (plugin.getConfig().getBoolean("remove-original-items", true)) {
-            int removed = plugin.cleaner().removeDeathItems(e.id);
+            int removed = plugin.cleaner().removeDeathItems(e.id, p.getName(), p.getUniqueId());
             if (removed > 0) {
                 plugin.getLogger().info("Usunieto " + removed + " oryginalnych przedmiotow ze smierci "
                         + e.id + " gracza " + p.getName() + " (backup odebrany).");

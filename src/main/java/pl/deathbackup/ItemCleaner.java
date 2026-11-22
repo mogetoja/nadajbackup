@@ -38,7 +38,10 @@ public class ItemCleaner {
     private final DeathBackupPlugin plugin;
     private final NamespacedKey key;
     private final File file;
-    private final Map<Long, Long> pending = new HashMap<>();
+    private record Pending(long time, String owner) {
+    }
+
+    private final Map<Long, Pending> pending = new HashMap<>();
 
     public ItemCleaner(DeathBackupPlugin plugin) {
         this.plugin = plugin;
@@ -80,29 +83,68 @@ public class ItemCleaner {
 
     // ------------------------------------------------------------ czyszczenie
 
-    private int cleanInventory(Inventory inv, Set<Long> ids) {
+    private int cleanInventory(Inventory inv, Set<Long> ids, Map<Long, Integer> perDeath) {
         if (inv == null) return 0;
         int removed = 0;
         ItemStack[] contents = inv.getContents();
         for (int i = 0; i < contents.length; i++) {
             Long m = markOf(contents[i]);
             if (m != null && ids.contains(m)) {
-                removed += contents[i].getAmount();
+                int amount = contents[i].getAmount();
+                removed += amount;
+                perDeath.merge(m, amount, Integer::sum);
                 inv.setItem(i, null);
             }
         }
         return removed;
     }
 
-    public int cleanPlayer(Player p, Set<Long> ids) {
-        int removed = cleanInventory(p.getInventory(), ids) + cleanInventory(p.getEnderChest(), ids);
+    private int cleanInventory(Inventory inv, Set<Long> ids) {
+        return cleanInventory(inv, ids, new HashMap<>());
+    }
+
+    /** Czysci gracza (ekwipunek, enderchest, kursor) i - jesli notify - informuje go o tym. */
+    public int cleanPlayer(Player p, Set<Long> ids, boolean notify) {
+        Map<Long, Integer> perDeath = new HashMap<>();
+        int removed = cleanInventory(p.getInventory(), ids, perDeath)
+                + cleanInventory(p.getEnderChest(), ids, perDeath);
         ItemStack cursor = p.getItemOnCursor();
         Long m = markOf(cursor);
         if (m != null && ids.contains(m)) {
             removed += cursor.getAmount();
+            perDeath.merge(m, cursor.getAmount(), Integer::sum);
             p.setItemOnCursor(null);
         }
+        if (notify) {
+            for (Map.Entry<Long, Integer> en : perDeath.entrySet()) {
+                Pending pd = pending.get(en.getKey());
+                notifyPlayer(p, en.getValue(), pd == null ? "" : pd.owner());
+            }
+        }
         return removed;
+    }
+
+    public int cleanPlayer(Player p, Set<Long> ids) {
+        return cleanPlayer(p, ids, true);
+    }
+
+    private void notifyPlayer(Player p, int amount, String owner) {
+        String who = owner == null || owner.isBlank() ? "inny gracz" : "gracz §a" + owner + "§7";
+        p.sendMessage(" ");
+        p.sendMessage("§8§m                                                ");
+        p.sendMessage("§c§l  BACKUP §8» §fUsunieto §e" + amount + " §f" + plural(amount)
+                + " z Twojego ekwipunku");
+        p.sendMessage("§7  Powod: " + who + " odebral backup swojej smierci,");
+        p.sendMessage("§7  a te przedmioty pochodzily wlasnie z niej.");
+        p.sendMessage("§8§m                                                ");
+        p.sendMessage(" ");
+    }
+
+    private static String plural(int n) {
+        if (n == 1) return "przedmiot";
+        int last = n % 10, last2 = n % 100;
+        if (last >= 2 && last <= 4 && !(last2 >= 12 && last2 <= 14)) return "przedmioty";
+        return "przedmiotow";
     }
 
     /** Skrzynie, beczki, shulkery (postawione), leje itp. w chunku. */
@@ -139,14 +181,14 @@ public class ItemCleaner {
      * zaladowane chunki (skrzynie, itemy na ziemi). Reszta (gracze offline,
      * niezaladowane chunki) zostanie wyczyszczona przy wejsciu / zaladowaniu chunku.
      */
-    public int removeDeathItems(long deathId) {
-        pending.put(deathId, System.currentTimeMillis());
+    public int removeDeathItems(long deathId, String owner, java.util.UUID claimant) {
+        pending.put(deathId, new Pending(System.currentTimeMillis(), owner));
         savePending();
 
         Set<Long> ids = Set.of(deathId);
         int removed = 0;
         for (Player p : Bukkit.getOnlinePlayers()) {
-            removed += cleanPlayer(p, ids);
+            removed += cleanPlayer(p, ids, !p.getUniqueId().equals(claimant));
         }
         for (World w : Bukkit.getWorlds()) {
             for (Chunk ch : w.getLoadedChunks()) {
@@ -165,7 +207,7 @@ public class ItemCleaner {
 
     public Set<Long> pendingIds() {
         long now = System.currentTimeMillis();
-        if (pending.values().removeIf(t -> now - t > EXPIRE_MS)) {
+        if (pending.values().removeIf(pd -> now - pd.time() > EXPIRE_MS)) {
             savePending();
         }
         return new HashSet<>(pending.keySet());
@@ -178,7 +220,12 @@ public class ItemCleaner {
         if (s == null) return;
         for (String k : s.getKeys(false)) {
             try {
-                pending.put(Long.parseLong(k), s.getLong(k));
+                long id = Long.parseLong(k);
+                if (s.isConfigurationSection(k)) {
+                    pending.put(id, new Pending(s.getLong(k + ".time"), s.getString(k + ".owner", "")));
+                } else {
+                    pending.put(id, new Pending(s.getLong(k), "")); // stary format
+                }
             } catch (NumberFormatException ignored) {
             }
         }
@@ -186,8 +233,9 @@ public class ItemCleaner {
 
     private void savePending() {
         YamlConfiguration cfg = new YamlConfiguration();
-        for (Map.Entry<Long, Long> e : pending.entrySet()) {
-            cfg.set("pending." + e.getKey(), e.getValue());
+        for (Map.Entry<Long, Pending> e : pending.entrySet()) {
+            cfg.set("pending." + e.getKey() + ".time", e.getValue().time());
+            cfg.set("pending." + e.getKey() + ".owner", e.getValue().owner());
         }
         try {
             cfg.save(file);
