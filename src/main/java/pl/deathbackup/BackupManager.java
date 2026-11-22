@@ -184,7 +184,7 @@ public class BackupManager {
         e.claimed = true;
         save(p.getUniqueId());
         plugin.bars().refresh(p.getUniqueId()); // dopiero po oznaczeniu jako odebrany
-        plugin.announceClaim(p.getName(), e.grantedBy);
+        plugin.announceClaim(p.getName(), e.grantedBy, e);
 
         // dopiero po odebraniu usuwamy oryginalne itemy z tej smierci (tylko te z tagiem ID smierci)
         if (plugin.getConfig().getBoolean("remove-original-items", true)) {

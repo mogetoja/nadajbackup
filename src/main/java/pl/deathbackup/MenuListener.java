@@ -131,7 +131,7 @@ public class MenuListener implements Listener {
         }
         plugin.bars().refresh(target);
 
-        plugin.announceGrant(admin.getName(), name);
+        plugin.announceGrant(admin.getName(), name, entry);
     }
 
     private void revoke(Player admin, UUID target, String name, BackupEntry entry) {
