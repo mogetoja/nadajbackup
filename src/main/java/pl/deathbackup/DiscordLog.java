@@ -26,27 +26,49 @@ public final class DiscordLog {
     private DiscordLog() {
     }
 
-    public static void grant(DeathBackupPlugin plugin, BackupEntry e, String owner, String admin) {
-        send(plugin, "Nadano backup", COLOR_GRANT,
-                "Administrator **" + admin + "** nadal backupa dla gracza **" + owner + "**.",
-                e, owner, admin);
+    private static final int COLOR_PENDING = 0xF1C40F;
+    private static final int COLOR_REJECT = 0xE74C3C;
+
+    public static void grant(DeathBackupPlugin plugin, BackupEntry e, String owner, String admin, String verifier) {
+        boolean ver = verifier != null && !verifier.isBlank();
+        send(plugin, ver ? "Nadano backup (zweryfikowany)" : "Nadano backup", COLOR_GRANT,
+                "Administrator **" + admin + "** nadal backupa dla gracza **" + owner + "**."
+                        + (ver ? " Zweryfikowal: **" + verifier + "**." : ""),
+                e, owner, admin, verifier);
     }
 
     public static void claim(DeathBackupPlugin plugin, BackupEntry e, String owner, String admin) {
         send(plugin, "Odebrano backup", COLOR_CLAIM,
                 "Gracz **" + owner + "** odebral backup nadany przez administratora **"
                         + (admin == null || admin.isBlank() ? "?" : admin) + "**.",
-                e, owner, admin);
+                e, owner, admin, e.verifiedBy);
+    }
+
+    public static void pending(DeathBackupPlugin plugin, BackupEntry e, String owner, String requester) {
+        send(plugin, "Backup czeka na weryfikacje", COLOR_PENDING,
+                "Administrator **" + requester + "** wystawil backup dla gracza **" + owner + "** do weryfikacji.",
+                e, owner, requester, "");
+    }
+
+    public static void rejected(DeathBackupPlugin plugin, BackupEntry e, String owner, String requester,
+                                String verifier) {
+        send(plugin, "Odrzucono backup", COLOR_REJECT,
+                "**" + verifier + "** odrzucil backup gracza **" + owner + "** (wystawil: **"
+                        + (requester == null || requester.isBlank() ? "?" : requester) + "**).",
+                e, owner, requester, verifier);
     }
 
     private static void send(DeathBackupPlugin plugin, String title, int color, String description,
-                             BackupEntry e, String owner, String admin) {
+                             BackupEntry e, String owner, String admin, String verifier) {
         String url = plugin.getConfig().getString("discord-webhook", "");
         if (url == null || url.isBlank()) return;
 
         List<String[]> fields = new ArrayList<>();
         fields.add(new String[]{"Gracz", owner, "true"});
         fields.add(new String[]{"Administrator", admin == null || admin.isBlank() ? "-" : admin, "true"});
+        if (verifier != null && !verifier.isBlank()) {
+            fields.add(new String[]{"Zweryfikowal", verifier, "true"});
+        }
         fields.add(new String[]{"Przyczyna smierci", e.cause, "true"});
         fields.add(new String[]{"Data smierci",
                 new SimpleDateFormat("dd.MM.yyyy HH:mm:ss").format(new Date(e.time)), "true"});

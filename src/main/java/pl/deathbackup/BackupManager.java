@@ -34,6 +34,39 @@ public class BackupManager {
         return new File(dir, id + ".yml");
     }
 
+    public record PendingRef(UUID owner, String ownerName, BackupEntry entry) {
+    }
+
+    private Set<UUID> knownPlayers() {
+        Set<UUID> ids = new HashSet<>(cache.keySet());
+        File[] files = dir.listFiles((d, n) -> n.endsWith(".yml"));
+        if (files != null) {
+            for (File f : files) {
+                String n = f.getName();
+                try {
+                    ids.add(UUID.fromString(n.substring(0, n.length() - 4)));
+                } catch (IllegalArgumentException ignored) {
+                }
+            }
+        }
+        return ids;
+    }
+
+    /** Wszystkie backupy czekajace na weryfikacje (od najstarszej smierci). */
+    public List<PendingRef> allPending() {
+        List<PendingRef> out = new ArrayList<>();
+        for (UUID id : knownPlayers()) {
+            for (BackupEntry e : get(id)) {
+                if (e.pendingVerify) {
+                    String n = Bukkit.getOfflinePlayer(id).getName();
+                    out.add(new PendingRef(id, n != null ? n : id.toString(), e));
+                }
+            }
+        }
+        out.sort((a, b) -> Long.compare(a.entry().time, b.entry().time));
+        return out;
+    }
+
     public boolean hasData(UUID id) {
         return cache.containsKey(id) || file(id).exists();
     }
@@ -91,6 +124,8 @@ public class BackupManager {
                         s.getBoolean("granted"),
                         s.getBoolean("claimed"));
                 entry.grantedBy = s.getString("grantedBy", "");
+                entry.pendingVerify = s.getBoolean("pendingVerify");
+                entry.verifiedBy = s.getString("verifiedBy", "");
                 list.add(entry);
             } catch (NumberFormatException ex) {
                 plugin.getLogger().warning("Pominieto uszkodzony wpis " + key + " w " + f.getName());
@@ -118,6 +153,8 @@ public class BackupManager {
             cfg.set(p + "granted", e.granted);
             cfg.set(p + "claimed", e.claimed);
             cfg.set(p + "grantedBy", e.grantedBy);
+            cfg.set(p + "pendingVerify", e.pendingVerify);
+            cfg.set(p + "verifiedBy", e.verifiedBy);
             for (Map.Entry<Integer, ItemStack> it : e.items.entrySet()) {
                 cfg.set(p + "items." + it.getKey(), it.getValue());
             }

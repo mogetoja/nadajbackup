@@ -17,10 +17,11 @@ import java.util.UUID;
 /** Budowanie menu (lista backupow + podglad zawartosci). */
 public final class Menus {
 
-    public enum Mode { ADMIN, CLAIM }
+    public enum Mode { ADMIN, CLAIM, VERIFY }
 
     public static final int SLOT_BACK = 45;
     public static final int SLOT_ACTION = 53;
+    public static final int SLOT_REJECT = 52;
 
     private Menus() {
     }
@@ -30,6 +31,8 @@ public final class Menus {
         public final String targetName;
         public final Mode mode;
         public final long[] ids = new long[54];
+        public final UUID[] owners = new UUID[54];
+        public final String[] ownerNames = new String[54];
         private Inventory inv;
 
         ListHolder(UUID target, String targetName, Mode mode) {
@@ -85,7 +88,7 @@ public final class Menus {
         for (int i = 0; i < shown.size() && i < BackupManager.MAX; i++) {
             BackupEntry e = shown.get(i);
             holder.ids[i] = e.id;
-            inv.setItem(i, icon(e, mode));
+            inv.setItem(i, icon(e, mode, viewer.hasPermission(DeathBackupPlugin.PERM_BYPASS)));
         }
 
         if (shown.isEmpty()) {
@@ -103,17 +106,21 @@ public final class Menus {
                 "§7Najnowsza smierc jest na poczatku.",
                 " ",
                 mode == Mode.ADMIN ? "§aZielone §7= nadane graczowi" : "§aKliknij §7aby odebrac backup",
-                mode == Mode.ADMIN ? "§8Szare §7= juz odebrane" : "§7Najpierw zrob miejsce w ekwipunku"));
+                mode == Mode.ADMIN ? "§8Szare §7= juz odebrane" : "§7Najpierw zrob miejsce w ekwipunku",
+                mode == Mode.ADMIN ? "§eZolte §7= czeka na weryfikacje" : " "));
 
         viewer.openInventory(inv);
     }
 
-    private static ItemStack icon(BackupEntry e, Mode mode) {
+    private static ItemStack icon(BackupEntry e, Mode mode, boolean bypass) {
         Material mat;
         String status;
         if (e.claimed) {
             mat = Material.GRAY_SHULKER_BOX;
             status = "§8Odebrany przez gracza";
+        } else if (e.pendingVerify) {
+            mat = Material.YELLOW_SHULKER_BOX;
+            status = "§eCzeka na weryfikacje" + (e.grantedBy.isBlank() ? "" : " §7(wystawil: §f" + e.grantedBy + "§7)");
         } else if (e.granted) {
             mat = Material.LIME_SHULKER_BOX;
             status = "§aNadany - czeka na odbior";
@@ -133,7 +140,7 @@ public final class Menus {
         }
         lore.add(" ");
         if (mode == Mode.ADMIN) {
-            lore.add("§eLPM §7- nadaj graczowi");
+            lore.add(bypass ? "§eLPM §7- nadaj graczowi" : "§eLPM §7- wyslij do weryfikacji");
             lore.add("§eShift+LPM §7- cofnij nadanie");
             lore.add("§ePPM §7- podglad zawartosci");
         } else {
@@ -142,6 +149,43 @@ public final class Menus {
         }
 
         return named(mat, "§6" + formatDate(e.time), lore.toArray(new String[0]));
+    }
+
+    // ------------------------------------------------------------ weryfikacja
+
+    /** Male okienko (jak pojedyncza skrzynia) z backupami czekajacymi na potwierdzenie. */
+    public static void openVerify(DeathBackupPlugin plugin, Player viewer) {
+        List<BackupManager.PendingRef> list = plugin.manager().allPending();
+
+        ListHolder holder = new ListHolder(null, "", Mode.VERIFY);
+        Inventory inv = Bukkit.createInventory(holder, 27, "§8Do weryfikacji §7(" + list.size() + ")");
+        holder.inv = inv;
+
+        for (int i = 0; i < list.size() && i < 27; i++) {
+            BackupManager.PendingRef r = list.get(i);
+            BackupEntry e = r.entry();
+            holder.ids[i] = e.id;
+            holder.owners[i] = r.owner();
+            holder.ownerNames[i] = r.ownerName();
+
+            inv.setItem(i, named(Material.YELLOW_SHULKER_BOX, "§6" + r.ownerName() + " §8- §7" + formatDate(e.time),
+                    "§7Gracz: §f" + r.ownerName(),
+                    "§7Wystawil: §f" + (e.grantedBy.isBlank() ? "?" : e.grantedBy),
+                    "§7Przyczyna: §f" + e.cause,
+                    "§7Miejsce: §f" + e.world + " " + (int) e.x + ", " + (int) e.y + ", " + (int) e.z,
+                    "§7Przedmioty: §f" + e.stackCount() + " slotow §8(" + e.itemCount() + " szt.)",
+                    "§7XP: §f" + XpUtil.levelFor(e.xp) + " lvl §8(" + e.xp + " pkt)",
+                    " ",
+                    "§aLPM §7- potwierdz",
+                    "§cPPM §7- odrzuc",
+                    "§eShift+LPM §7- podglad zawartosci"));
+        }
+
+        if (list.isEmpty()) {
+            inv.setItem(13, named(Material.BARRIER, "§cBrak backupow do weryfikacji"));
+        }
+
+        viewer.openInventory(inv);
     }
 
     // ----------------------------------------------------------------- podglad
@@ -179,9 +223,17 @@ public final class Menus {
         inv.setItem(49, named(Material.EXPERIENCE_BOTTLE, "§aDoswiadczenie",
                 "§7Poziom: §f" + XpUtil.levelFor(e.xp),
                 "§7Punkty: §f" + e.xp));
-        if (mode == Mode.ADMIN) {
-            inv.setItem(SLOT_ACTION, named(Material.LIME_DYE, "§aNadaj ten backup graczowi",
-                    "§7Gracz §f" + targetName + " §7odbierze go przez §e/odbierzbackup"));
+        if (mode == Mode.VERIFY) {
+            inv.setItem(SLOT_ACTION, named(Material.LIME_DYE, "§aPotwierdz backup",
+                    "§7Gracz §f" + targetName + " §7bedzie mogl go odebrac."));
+            inv.setItem(SLOT_REJECT, named(Material.RED_DYE, "§cOdrzuc backup",
+                    "§7Backup nie zostanie nadany."));
+        } else if (mode == Mode.ADMIN) {
+            boolean bypass = viewer.hasPermission(DeathBackupPlugin.PERM_BYPASS);
+            inv.setItem(SLOT_ACTION, named(Material.LIME_DYE,
+                    bypass ? "§aNadaj ten backup graczowi" : "§aWyslij backup do weryfikacji",
+                    bypass ? "§7Gracz §f" + targetName + " §7odbierze go przez §e/odbierzbackup"
+                            : "§7Gracz odbierze go dopiero po potwierdzeniu przez administracje."));
         } else {
             inv.setItem(SLOT_ACTION, named(Material.LIME_DYE, "§aOdbierz ten backup",
                     "§7Itemy i XP trafia do Twojego ekwipunku."));

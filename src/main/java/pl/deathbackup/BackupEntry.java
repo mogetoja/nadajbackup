@@ -22,6 +22,10 @@ public class BackupEntry {
     public boolean claimed;
     /** Nick administratora, ktory nadal backup. */
     public String grantedBy = "";
+    /** Backup wystawiony do nadania, czeka na potwierdzenie przez osobe z komendy.backup.verify. */
+    public boolean pendingVerify;
+    /** Nick osoby, ktora potwierdzila backup. */
+    public String verifiedBy = "";
 
     public BackupEntry(long id, long time, String world, double x, double y, double z,
                        String cause, int xp, Map<Integer, ItemStack> items,

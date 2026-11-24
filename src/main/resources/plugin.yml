@@ -13,6 +13,10 @@ commands:
     description: Odbierz backup nadany przez administratora
     usage: /odbierzbackup
     permission: deathbackup.claim
+  backup-verify:
+    description: Weryfikacja backupow czekajacych na potwierdzenie (administracja)
+    usage: /backup-verify
+    permission: komendy.backup.verify
 
 permissions:
   deathbackup.admin:
@@ -21,6 +25,12 @@ permissions:
   deathbackup.claim:
     description: Dostep do /odbierzbackup
     default: true
-  deathbackup.wiadomoscibc:
-    description: Widzi na czacie ogloszenia o nadaniu backupow
+  komendy.backup.verify:
+    description: Dostep do /backup-verify - potwierdzanie i odrzucanie backupow
+    default: op
+  komendy.backup.verify.bypass:
+    description: Backupy nadawane przez te osobe nie wymagaja weryfikacji
+    default: op
+  komendy.backup.alerts:
+    description: Widzi na czacie informacje o nadaniach, odbiorach i weryfikacjach backupow
     default: op

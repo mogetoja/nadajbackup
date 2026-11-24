@@ -4,9 +4,8 @@
 # Discord: Ustawienia kanalu -> Integracje -> Webhooki -> Nowy webhook -> Kopiuj URL
 discord-webhook: ""
 
-# Ogloszenie o odebraniu backupu na czacie dla wszystkich graczy (true/false).
-# Ogloszenie o nadaniu widza zawsze tylko osoby z uprawnieniem deathbackup.wiadomoscibc.
-chat-broadcast: true
+# Informacje o nadaniach, odbiorach i weryfikacjach backupow widza na czacie tylko osoby
+# z uprawnieniem komendy.backup.alerts (nie ma juz ogloszen dla wszystkich graczy).
 
 # Gdy gracz ODBIERZE backup, usuwa oryginalne itemy z tej smierci (gracze online, skrzynie,
 # itemy na ziemi; gracze offline i niezaladowane chunki - przy wejsciu / zaladowaniu).
